@@ -1,122 +1,107 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useCallback, useEffect, useState } from "react";
+import Graph3D from "./components/Graph3D";
+import InfoPopup from "./components/InfoPopup";
+import Breadcrumb from "./components/Breadcrumb";
+import { getGraphView } from "./api/topicsApi";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+const ROOT_TOPIC_ID = import.meta.env.VITE_ROOT_TOPIC_ID || "root";
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+function toGraphData(view) {
+  return {
+    nodes: [view.node, ...view.children],
+    links: view.children.map((child) => ({ source: view.node.id, target: child.id })),
+  };
 }
 
-export default App
+export default function App() {
+  const [focusId, setFocusId] = useState(ROOT_TOPIC_ID);
+  const [trail, setTrail] = useState([]);
+  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    getGraphView(focusId)
+      .then((view) => {
+        if (cancelled) return;
+        if (!view) {
+          setError(`Topic "${focusId}" was not found. Have you run the seed script?`);
+          return;
+        }
+        setGraphData(toGraphData(view));
+        setTrail((prev) => {
+          const existingIndex = prev.findIndex((item) => item.id === view.node.id);
+          if (existingIndex !== -1) return prev.slice(0, existingIndex + 1);
+          return [...prev, { id: view.node.id, title: view.node.title }];
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusId]);
+
+  const handleSingleClick = useCallback((node) => {
+    setSelectedTopic(node);
+  }, []);
+
+  const handleDoubleClick = useCallback((node) => {
+    setSelectedTopic(null);
+    setFocusId(node.id);
+  }, []);
+
+  const handleExpandFromPopup = useCallback((topic) => {
+    setSelectedTopic(null);
+    setFocusId(topic.id);
+  }, []);
+
+  const handleBreadcrumbNavigate = useCallback(
+    (index) => {
+      setTrail((prev) => prev.slice(0, index + 1));
+      setFocusId(trail[index].id);
+    },
+    [trail]
+  );
+
+  const handleBack = useCallback(() => {
+    if (trail.length <= 1) return;
+    handleBreadcrumbNavigate(trail.length - 2);
+  }, [trail, handleBreadcrumbNavigate]);
+
+  return (
+    <div className="app">
+      <Breadcrumb trail={trail} onNavigate={handleBreadcrumbNavigate} onBack={handleBack} />
+
+      <div className="canvas-wrap">
+        {loading && <div className="status-banner">Loading knowledge graph&hellip;</div>}
+        {error && <div className="status-banner status-banner--error">{error}</div>}
+        {!loading && !error && (
+          <Graph3D
+            graphData={graphData}
+            focusId={focusId}
+            onNodeSingleClick={handleSingleClick}
+            onNodeDoubleClick={handleDoubleClick}
+          />
+        )}
+      </div>
+
+      <InfoPopup
+        topic={selectedTopic}
+        onClose={() => setSelectedTopic(null)}
+        onExpand={handleExpandFromPopup}
+      />
+    </div>
+  );
+}

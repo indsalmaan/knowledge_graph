@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(docker info *)",
+      "Bash(npx tsc *)",
+      "Bash(DB_ADAPTER=inmemory PORT=3999 npx tsx src/index.ts)",
+      "Bash(echo \"started with pid $!\")",
+      "Bash(set -e)",
+      "Bash(curl -s -X POST localhost:3999/api/topics -H 'Content-Type: application/json' -d '{\"id\":\"root\",\"title\":\"All Human Knowledge\",\"description\":\"root desc\"}')",
+      "Bash(curl -s -X POST localhost:3999/api/topics -H 'Content-Type: application/json' -d '{\"id\":\"thermo\",\"title\":\"Thermodynamics\",\"description\":\"thermo desc\",\"parentId\":\"root\"}')",
+      "Bash(curl -s localhost:3999/api/topics/root/graph)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" localhost:3999/api/topics/nope/graph)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"tsx src/index.ts\")",
+      "Bash(npm run *)"
+    ]
+  }
+}
