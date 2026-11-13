@@ -6,6 +6,7 @@ import { Neo4jTopicRepository } from "./adapters/neo4j/neo4jAdapter";
 import { TopicRepository } from "./ports/TopicRepository";
 import { TopicService } from "./application/topicService";
 import { createTopicRouter } from "./controllers/topicController";
+import { openAiSubtopicGenerator } from "./adapters/openai/subtopicGenerator";
 
 dotenv.config();
 
@@ -18,7 +19,11 @@ const dbAdapter = process.env.DB_ADAPTER || "neo4j";
 const repo: TopicRepository =
   dbAdapter === "inmemory" ? new InMemoryTopicRepository() : new Neo4jTopicRepository();
 
-const topicService = new TopicService(repo);
+const topicService = new TopicService(
+  repo,
+  process.env.OPENAI_API_KEY ? openAiSubtopicGenerator : undefined
+);
+if (!process.env.OPENAI_API_KEY) console.warn("OPENAI_API_KEY not set: AI subtopic generation disabled");
 
 app.use("/api/topics", createTopicRouter(topicService));
 
